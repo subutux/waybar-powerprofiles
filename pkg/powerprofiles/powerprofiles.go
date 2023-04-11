@@ -1,8 +1,6 @@
 package powerprofiles
 
 import (
-	"log"
-
 	"github.com/godbus/dbus/v5"
 )
 
@@ -34,7 +32,6 @@ func (p *Profiles) GetProfiles() ([]Profile, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Print(pp)
 	ppp := []map[string]dbus.Variant{}
 	err = pp.Store(&ppp)
 	if err != nil {

@@ -3,10 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
+	"github.com/godbus/dbus/v5"
 	"github.com/subutux/waybar-powerprofiles/pkg/powerprofiles"
 
 	waybar "github.com/lack/gowaybarplug"
@@ -21,7 +21,6 @@ func loop(interval time.Duration, pp *powerprofiles.Profiles) {
 
 		status := waybar.Status{}
 		profile, err := pp.GetActiveProfile()
-		log.Printf(profile)
 		if err != nil {
 			status.Alt = "error"
 			status.Class = []string{"error"}
@@ -35,6 +34,62 @@ func loop(interval time.Duration, pp *powerprofiles.Profiles) {
 		time.Sleep(interval)
 
 	}
+}
+
+func watcher(pp *powerprofiles.Profiles) {
+	wb := waybar.NewUpdater()
+	status := waybar.Status{}
+	conn, err := dbus.SystemBus()
+	if err != nil {
+		status.Alt = "error"
+		status.Class = []string{"error"}
+		status.Tooltip = fmt.Sprintf("Cannot get active profile: %v", err)
+	}
+	defer conn.Close()
+	// "net.hadess.PowerProfiles", "/net/hadess/PowerProfiles"
+	err = conn.AddMatchSignal(
+		dbus.WithMatchObjectPath("/net/hadess/PowerProfiles"),
+		//dbus.WithMatchInterface("net.hadess.PowerProfiles"),
+		//dbus.WithMat
+	)
+
+	if err != nil {
+		panic(err)
+	}
+
+	profile, err := pp.GetActiveProfile()
+	if err != nil {
+		status.Alt = "error"
+		status.Class = []string{"error"}
+		status.Tooltip = fmt.Sprintf("Cannot get active profile: %v", err)
+	}
+	status.Text = profile
+	status.Class = []string{profile}
+	status.Alt = profile
+	status.Tooltip = fmt.Sprintf("Active: %s", profile)
+
+	wb.Status <- &status
+
+	c := make(chan *dbus.Signal, 10)
+	conn.Signal(c)
+	for range c {
+		// fmt.Println(v)
+
+		profile, err := pp.GetActiveProfile()
+		if err != nil {
+			status.Alt = "error"
+			status.Class = []string{"error"}
+			status.Tooltip = fmt.Sprintf("Cannot get active profile: %v", err)
+		}
+		status.Text = profile
+		status.Class = []string{profile}
+		status.Alt = profile
+		status.Tooltip = fmt.Sprintf("Active: %s", profile)
+
+		wb.Status <- &status
+
+	}
+
 }
 
 func main() {
@@ -54,8 +109,6 @@ func main() {
 		os.Exit(0)
 	}
 
-	log.Printf(" next: %v", next)
-
 	if next {
 		profiles, err := powerProfiles.GetProfiles()
 		if err != nil {
@@ -68,7 +121,6 @@ func main() {
 			fmt.Printf("Failed to get active profile: %v\n", err)
 			os.Exit(1)
 		}
-		log.Printf(" Profiles: %v", profiles)
 		for idx, p := range profiles {
 			if profile == p.Profile {
 				var i = idx + 1
@@ -88,7 +140,7 @@ func main() {
 
 	}
 
-	loop(5*time.Second, powerProfiles)
+	watcher(powerProfiles)
 
 }
 
